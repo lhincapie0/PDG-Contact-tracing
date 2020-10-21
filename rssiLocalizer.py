@@ -38,6 +38,8 @@ class observers_profile:
 def generateRandomLocation(ap):
     ed_e = ap.location.find("Edificio E")
     ed_d = ap.location.find("Edificio D")
+    ed_sae = ap.location.find("Casa_SAE")
+
 
     if (ed_e > 0):
         ap.x = np.random.randint(100, 200)
@@ -45,7 +47,23 @@ def generateRandomLocation(ap):
     if (ed_d > 0):
         ap.x = np.random.randint(300, 400)
         ap.y = np.random.randint(100, 150)
+    if (ed_sae > 0):
+        x = np.random.randint(700, 800)
+        y = np.random.randint(300, 360)
+        ap.x = x
+        ap.y = y
     return ap
+
+def evaluateMatches():
+    print("evaluating observers ... ")
+    for observer in observers:
+        for accesspoint in accesspoints:
+            if(accesspoint.mac == observer.ap_mac):
+                print("ttrue")
+                print(observer.ap_mac)
+                print(access_point.x)
+                print(access_point.y)
+
 
 connection = None
 try:
@@ -62,17 +80,17 @@ try:
     for element in aps:
         for ap in element:
             access_point = access_point_profile(ap[1], ap[2], ap[6], ap[14])
-            accesspoints.append(generateRandomLocation(access_point))
+            access_point = generateRandomLocation(access_point)
+            accesspoints.append(access_point)
+            
 
-    postgreSQL_select_Query = """SELECT res.mac, res.seenTime, spaces."MAC", res.rssi, res.x, res.y 
+    postgreSQL_select_Query = """SELECT res.mac, res.seenTime, spaces."MAC", res.rssi
         FROM(SELECT 
         json_array_elements(data->'data'->'observations')->>'clientMac' as mac,
         json_array_elements(data->'data'->'observations')->>'seenEpoch' as seenEpoch,
         json_array_elements(data->'data'->'observations')->>'seenTime' as seenTime,
         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'apMac' as apMac,
-        json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'rssi' as rssi,
-        json_array_elements(data->'data'->'observations') ->> 'x' as x,
-        json_array_elements(data->'data'->'observations') ->> 'y' as y
+        json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'rssi' as rssi
         FROM example
         ORDER BY mac,seenTime) as res, spaces
         WHERE res.mac='322A1BD104C2' 
@@ -86,7 +104,7 @@ try:
     for element in obs:
         for ob in element:
             observer = observers_profile(ob[0], ob[2], ob[3], ob[1])
-            # accesspoints.append(generateRandomLocation(access_point))
+            observers.append(observer)
 
 finally:
     # closing database connection.
@@ -94,3 +112,6 @@ finally:
         cursor.close()
         connection.close()
         print("PostgreSQL connection is closed")
+        evaluateMatches()
+        #evaluate()
+
