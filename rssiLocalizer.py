@@ -1,26 +1,44 @@
 import psycopg2
 import math
 from rssi import RSSI_Localizer
+import matplotlib.pyplot as plt
 
 EPSILON = 0.000001
-accessPoint = {
-    'signalAttenuation': 3,
-    'location': {
-        'y': 74,
-        'x': 231
-    },
-    'reference': {
-        'distance': 4,
-        'signal': -50
-    },
-    'name': 'dd-wrt'
-}
-rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoint)
+
+
+def convert_to_AP(attenuation, x, y, distance, signal, name):
+    accessPoint = {
+        'signalAttenuation': attenuation,
+        'location': {
+            'y': y,
+            'x': x
+        },
+        'reference': {
+            'distance': distance,
+            'signal': signal
+        },
+        'name': name
+    }
+    return accessPoint
+
+
+class access_point:
+    def __init__(self, mac, observers, seen_time, x, y, rssi):
+        self.mac = mac
+        self.observers = observers
+        self.seen_time = seen_time
+        self.x = x
+        self.y = y
+        self.rssi = rssi
+
+
+rssi_localizer_instance = RSSI_Localizer(
+    accessPoints=convert_to_AP(3, 74, 231, 4, -50, 'AP-INFO'))
 
 signalStrength = -99
 
 distance = rssi_localizer_instance.getDistanceFromAP(
-    accessPoint, signalStrength)
+    convert_to_AP(3, 74, 231, 4, -50, 'AP-INFO'), signalStrength)
 
 
 def calculate_intersections(x0, y0, r0, x1,  y1, r1):
@@ -67,18 +85,18 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
     intersectionPoint2_x = intersectionsAP12[1]
     intersectionPoint1_y = intersectionsAP12[2]
     intersectionPoint2_y = intersectionsAP12[3]
-
-    print("INTERSECTION AP1 AND AP2:" + "(" + str(intersectionPoint1_x) + "," + str(intersectionPoint1_y) + ")"
-          + " AND (" + str(intersectionPoint2_x) + "," + str(intersectionPoint2_y) + ")")
+    if(intersectionsAP12 != None):
+        print("INTERSECTION AP1 AND AP2:" + "(" + str(intersectionPoint1_x) + "," + str(intersectionPoint1_y) + ")"
+              + " AND (" + str(intersectionPoint2_x) + "," + str(intersectionPoint2_y) + ")")
     intersectionsAP13 = calculate_intersections(x0, y0, r0, x2, y2, r2)
-
-    print("INTERSECTION AP1 AND AP3:" + "(" + str(intersectionsAP13[0]) + "," + str(intersectionsAP13[2]) + ")"
-          + " AND (" + str(intersectionsAP13[1]) + "," + str(intersectionsAP13[3]) + ")")
+    if(intersectionsAP13 != None):
+        print("INTERSECTION AP1 AND AP3:" + "(" + str(intersectionsAP13[0]) + "," + str(intersectionsAP13[2]) + ")"
+              + " AND (" + str(intersectionsAP13[1]) + "," + str(intersectionsAP13[3]) + ")")
 
     intersectionsAP23 = calculate_intersections(x1, y1, r1, x2, y2, r2)
-
-    print("INTERSECTION AP2 AND AP3:" + "(" + str(intersectionsAP23[0]) + "," + str(intersectionsAP23[2]) + ")"
-          + " AND (" + str(intersectionsAP23[1]) + "," + str(intersectionsAP23[3]) + ")")
+    if(intersectionsAP23 != None):
+        print("INTERSECTION AP2 AND AP3:" + "(" + str(intersectionsAP23[0]) + "," + str(intersectionsAP23[2]) + ")"
+              + " AND (" + str(intersectionsAP23[1]) + "," + str(intersectionsAP23[3]) + ")")
 
     dx = intersectionPoint1_x - x2
     dy = intersectionPoint1_y - y2
@@ -135,7 +153,27 @@ finally:
         print("PostgreSQL connection is closed")
 print(distance)
 
+# EXAMPLE PAPER
+AP1 = access_point('DDDDDADAS', 4, 12, 1.5, 1.5, 2.47)
+AP2 = access_point('DDDDDADAS', 4, 12, 4.5, 2, 2.86)
+AP3 = access_point('DDDDDADAS', 4, 12, 7.5, 2.5, 5.35)
 # example with coordinates APinfo
 print(trilateration(12.92732259, -27.85846534, 3.0,
                     11.32153227, -27.83017898, 2.0,
                     4.149949553, -26.74243983, 8.0))
+
+print(trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+                    AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi))
+
+
+fig, ax = plt.subplots()
+ax.add_patch(plt.Circle((AP1.x, AP1.y), AP1.rssi, color='r', alpha=0.5))
+ax.add_patch(plt.Circle((AP2.x, AP2.y), AP2.rssi, color='#00ffff', alpha=0.5))
+ax.add_artist(plt.Circle((AP3.x, AP3.y), AP3.rssi, color='#000033', alpha=0.5))
+ax.annotate("AP1", xy=(AP1.x, AP1.y), fontsize=10)
+ax.annotate("AP2", xy=(AP2.x, AP2.y), fontsize=10)
+ax.annotate("AP3", xy=(AP3.x, AP3.y), fontsize=10)
+# Use adjustable='box-forced' to make the plot area square-shaped as well.
+ax.set_aspect('equal', adjustable='datalim')
+ax.plot()  # Causes an autoscale update.
+plt.show()
