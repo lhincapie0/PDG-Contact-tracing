@@ -2,6 +2,7 @@ import psycopg2
 import math
 from rssi import RSSI_Localizer
 import matplotlib.pyplot as plt
+import numpy as np
 
 EPSILON = 0.000001
 
@@ -30,15 +31,6 @@ class access_point:
         self.x = x
         self.y = y
         self.rssi = rssi
-
-
-rssi_localizer_instance = RSSI_Localizer(
-    accessPoints=convert_to_AP(3, 74, 231, 4, -50, 'AP-INFO'))
-
-signalStrength = -99
-
-distance = rssi_localizer_instance.getDistanceFromAP(
-    convert_to_AP(3, 74, 231, 4, -50, 'AP-INFO'), signalStrength)
 
 
 def calculate_intersections(x0, y0, r0, x1,  y1, r1):
@@ -81,13 +73,10 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
     intersectionsAP12 = calculate_intersections(x0, y0, r0, x1, y1, r1)
     # Determine the absolute intersection points.
-    intersectionPoint1_x = intersectionsAP12[0]
-    intersectionPoint2_x = intersectionsAP12[1]
-    intersectionPoint1_y = intersectionsAP12[2]
-    intersectionPoint2_y = intersectionsAP12[3]
+    
     if(intersectionsAP12 != None):
-        print("INTERSECTION AP1 AND AP2:" + "(" + str(intersectionPoint1_x) + "," + str(intersectionPoint1_y) + ")"
-              + " AND (" + str(intersectionPoint2_x) + "," + str(intersectionPoint2_y) + ")")
+        print("INTERSECTION AP1 AND AP2:" + "(" + str(intersectionsAP12[0]) + "," + str(intersectionsAP12[2]) + ")"
+              + " AND (" + str(intersectionsAP12[1]) + "," + str(intersectionsAP12[3]) + ")")
     intersectionsAP13 = calculate_intersections(x0, y0, r0, x2, y2, r2)
     if(intersectionsAP13 != None):
         print("INTERSECTION AP1 AND AP3:" + "(" + str(intersectionsAP13[0]) + "," + str(intersectionsAP13[2]) + ")"
@@ -98,23 +87,32 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
         print("INTERSECTION AP2 AND AP3:" + "(" + str(intersectionsAP23[0]) + "," + str(intersectionsAP23[2]) + ")"
               + " AND (" + str(intersectionsAP23[1]) + "," + str(intersectionsAP23[3]) + ")")
 
-    dx = intersectionPoint1_x - x2
-    dy = intersectionPoint1_y - y2
-    d1 = math.sqrt((dy * dy) + (dx * dx))
+    if(intersectionsAP12 != None):
+        intersectionPoint1_x = intersectionsAP12[0]
+        intersectionPoint2_x = intersectionsAP12[1]
+        intersectionPoint1_y = intersectionsAP12[2]
+        intersectionPoint2_y = intersectionsAP12[3]
+        dx = intersectionPoint1_x - x2
+        dy = intersectionPoint1_y - y2
+        d1 = math.sqrt((dy * dy) + (dx * dx))
 
-    dx = intersectionPoint2_x - x2
-    dy = intersectionPoint2_y - y2
-    d2 = math.sqrt((dy * dy) + (dx * dx))
+        dx = intersectionPoint2_x - x2
+        dy = intersectionPoint2_y - y2
+        d2 = math.sqrt((dy * dy) + (dx * dx))
 
-    if (abs(d1 - r2) < EPSILON):
-        print("INTERSECTION AP1 AND AP2 AND AP3:" + "(" + intersectionPoint1_x + ","
-              + intersectionPoint1_y + ")")
-    elif (abs(d2 - r2) < EPSILON):
-        print("INTERSECTION AP1 AND AP2 AND AP3:" + "(" + intersectionPoint2_x + ","
-              + intersectionPoint2_y + ")")
-        # here was an error
+        if (abs(d1 - r2) < EPSILON):
+            print("INTERSECTION AP1 AND AP2 AND AP3:" + "(" + intersectionPoint1_x + ","
+                + intersectionPoint1_y + ")")
+            return [intersectionPoint1_x, intersectionPoint1_y]
+        elif (abs(d2 - r2) < EPSILON):
+            print("INTERSECTION AP1 AND AP2 AND AP3:" + "(" + intersectionPoint2_x + ","
+                + intersectionPoint2_y + ")")
+            return [intersectionPoint2_x, intersectionPoint2_y]
+            # here was an error
+        else:
+            print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
     else:
-        print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
+            print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
 
 
 try:
@@ -151,29 +149,91 @@ finally:
         cursor.close()
         connection.close()
         print("PostgreSQL connection is closed")
-print(distance)
+
+
+def calculateDistance(rssi):
+
+    txPower = -59  # hard coded power value. Usually ranges between -59 to -65
+
+    if (rssi == 0):
+        return -1.0
+
+    ratio = rssi*1.0/txPower
+    if (ratio < 1.0):
+        return math.pow(ratio, 10)
+    else:
+        distance = (0.89976)*math.pow(ratio, 7.7095) + 0.111
+        return distance
+
 
 # EXAMPLE PAPER
-AP1 = access_point('DDDDDADAS', 4, 12, 1.5, 1.5, 2.47)
-AP2 = access_point('DDDDDADAS', 4, 12, 4.5, 2, 2.86)
-AP3 = access_point('DDDDDADAS', 4, 12, 7.5, 2.5, 5.35)
+coords = np.random.rand(3, 2) * 5
+print(coords)
+
+
+# AP1 = access_point('DDDDDADAS', 4, 12, 1.5, 1.5, 2.47)
+# AP2 = access_point('DDDDDADAS', 4, 12, 4.5, 2, 2.86)
+# AP3 = access_point('DDDDDADAS', 4, 12, 7.5, 2.5, 5.35)
+accessPoints = [convert_to_AP(1, coords[0, 0], coords[0, 1], 1, -50, 'AP-INFO1'),
+                convert_to_AP(1, coords[1, 0],
+                              coords[1, 1], 1, -50, 'AP-INFO2'),
+                convert_to_AP(1, coords[2, 0], coords[2, 1], 1, -50, 'AP-INFO3')]
+rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
+
+signalStrength = -49
+
+distances = rssi_localizer_instance.getDistancesForAllAPs(
+    [-49, -53, -50])
+
+
+distance = rssi_localizer_instance.getDistanceFromAP(
+    accessPoints[0], signalStrength)
+print(distances)
+
+AP1 = access_point('DDDDDADAS', 4, 12,
+                   coords[0, 0], coords[0, 1], float(distances[0]["distance"]))
+AP2 = access_point('DDDDDADAS', 4, 12,
+                   coords[1, 0], coords[1, 1], float(distances[1]["distance"]))
+AP3 = access_point('DDDDDADAS', 4, 12,
+                   coords[2, 0], coords[2, 1], float(distances[2]["distance"]))
 # example with coordinates APinfo
-print(trilateration(12.92732259, -27.85846534, 3.0,
-                    11.32153227, -27.83017898, 2.0,
-                    4.149949553, -26.74243983, 8.0))
-
-print(trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-                    AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi))
 
 
-fig, ax = plt.subplots()
-ax.add_patch(plt.Circle((AP1.x, AP1.y), AP1.rssi, color='r', alpha=0.5))
-ax.add_patch(plt.Circle((AP2.x, AP2.y), AP2.rssi, color='#00ffff', alpha=0.5))
-ax.add_artist(plt.Circle((AP3.x, AP3.y), AP3.rssi, color='#000033', alpha=0.5))
-ax.annotate("AP1", xy=(AP1.x, AP1.y), fontsize=10)
-ax.annotate("AP2", xy=(AP2.x, AP2.y), fontsize=10)
-ax.annotate("AP3", xy=(AP3.x, AP3.y), fontsize=10)
-# Use adjustable='box-forced' to make the plot area square-shaped as well.
-ax.set_aspect('equal', adjustable='datalim')
-ax.plot()  # Causes an autoscale update.
-plt.show()
+trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+              AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+
+
+def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
+
+    fig, ax = plt.subplots()
+    ax.add_patch(plt.Circle((x0, y0), AP1.rssi, color='r', alpha=0.5))
+    ax.add_patch(plt.Circle((x1, y1), AP2.rssi, color='#00ffff', alpha=0.5))
+    ax.add_artist(plt.Circle((x2, y2), AP3.rssi, color='#000033', alpha=0.5))
+
+    ax.annotate("AP1", xy=(x0, y0), fontsize=10)
+    ax.annotate("AP2", xy=(x1, y1), fontsize=10)
+    ax.annotate("AP3", xy=(x2, y2), fontsize=10)
+
+    intersections = calculate_intersections(x0, y0, r0, x1, y1, r1)
+    if(intersections != None):
+        print(intersections)
+        plt.plot([intersections[0], intersections[1]], [
+                 intersections[2], intersections[3]], '.', color='r')
+
+    intersections = calculate_intersections(x0, y0, r0, x2, y2, r2)
+    if(intersections != None):
+        plt.plot([intersections[0], intersections[1]], [
+                 intersections[2], intersections[3]], '.', color='r')
+
+    intersections = calculate_intersections(x1, y1, r1, x2, y2, r2)
+    if(intersections != None):
+        plt.plot([intersections[0], intersections[1]], [
+                 intersections[2], intersections[3]], '.', color='r')
+
+    ax.set_aspect('equal', adjustable='datalim')
+    ax.plot()
+    plt.show()
+
+
+drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+                  AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
