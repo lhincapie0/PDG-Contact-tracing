@@ -3,6 +3,7 @@ import math
 from rssi import RSSI_Localizer
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 EPSILON = 0.000001
 
@@ -73,7 +74,7 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
     intersectionsAP12 = calculate_intersections(x0, y0, r0, x1, y1, r1)
     # Determine the absolute intersection points.
-    
+
     if(intersectionsAP12 != None):
         print("INTERSECTION AP1 AND AP2:" + "(" + str(intersectionsAP12[0]) + "," + str(intersectionsAP12[2]) + ")"
               + " AND (" + str(intersectionsAP12[1]) + "," + str(intersectionsAP12[3]) + ")")
@@ -102,17 +103,17 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
         if (abs(d1 - r2) < EPSILON):
             print("INTERSECTION AP1 AND AP2 AND AP3:" + "(" + intersectionPoint1_x + ","
-                + intersectionPoint1_y + ")")
+                  + intersectionPoint1_y + ")")
             return [intersectionPoint1_x, intersectionPoint1_y]
         elif (abs(d2 - r2) < EPSILON):
             print("INTERSECTION AP1 AND AP2 AND AP3:" + "(" + intersectionPoint2_x + ","
-                + intersectionPoint2_y + ")")
+                  + intersectionPoint2_y + ")")
             return [intersectionPoint2_x, intersectionPoint2_y]
             # here was an error
         else:
             print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
     else:
-            print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
+        print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
 
 
 try:
@@ -122,7 +123,21 @@ try:
                                   port="5433",
                                   database="PDGAccessPointsDB")
     cursor = connection.cursor()
-    postgreSQL_select_Query = "SELECT apsfiles.data ->>'clientMac' as MAC, jsonb_array_length(apsfiles.data -> 'deviceObservers') as Observers, CAST(apsfiles.data ->>'seenTime' AS TIMESTAMP) as SEENTIME, data -> 'deviceObservers' -> 0 ->>'apMac' as apmac1,data -> 'deviceObservers' -> 1 ->>'apMac' as apmac2,data -> 'deviceObservers' -> 2 ->>'apMac' as apmac3,data -> 'deviceObservers' -> 3 ->>'apMac' as apmac4 FROM apsfiles, jsonb_array_elements(data -> 'deviceObservers')  GROUP BY apsfiles.data ORDER BY apsfiles.data -> 'seenTime' "
+    postgreSQL_select_Query = """SELECT o.id,  
+	o.data->>'seenTime',
+	o.data->>'clientMac',
+	jsonb_array_length(o.data->'deviceObservers') as "Observers",
+    JSON_AGG(
+        JSON_BUILD_OBJECT('apLocation',
+						  u."Location", 'name', u."Host Name",'mac', e.observers->'apMac', 'rssi',e.observers->'rssi')
+    )
+    FROM apsfiles o
+    INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
+    INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
+    WHERE o.data->>'clientMac'='8875989F746A'
+    AND (jsonb_array_length(o.data->'deviceObservers')::text::int=3
+    OR jsonb_array_length(o.data->'deviceObservers')::text::int=4)
+    GROUP BY o.id"""
 
     cursor.execute(postgreSQL_select_Query)
     print("Selecting rows from apinfo table using cursor.fetchall")
@@ -140,6 +155,10 @@ try:
 #             print(row[5])
 #             print(row[6])
 
+   
+    for row in aps_records:
+        print(row)
+        
 except (Exception, psycopg2.Error) as error:
     print("Error while fetching data from PostgreSQL", error)
 
