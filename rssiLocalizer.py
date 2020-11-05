@@ -135,8 +135,7 @@ try:
     INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
     INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
     WHERE o.data->>'clientMac'='8875989F746A'
-    AND (jsonb_array_length(o.data->'deviceObservers')::text::int=3
-    OR jsonb_array_length(o.data->'deviceObservers')::text::int=4)
+    AND jsonb_array_length(o.data->'deviceObservers')::text::int=3
     GROUP BY o.id"""
 
     cursor.execute(postgreSQL_select_Query)
@@ -155,10 +154,7 @@ try:
 #             print(row[5])
 #             print(row[6])
 
-   
-    for row in aps_records:
-        print(row)
-        
+
 except (Exception, psycopg2.Error) as error:
     print("Error while fetching data from PostgreSQL", error)
 
@@ -185,49 +181,57 @@ def calculateDistance(rssi):
         return distance
 
 
-# EXAMPLE PAPER
-coords = np.random.rand(3, 2) * 5
-print(coords)
+def trilateration_all():
 
+    for row in aps_records:
+        # EXAMPLE PAPER
+        coords = np.random.rand(int(row[3]), 2) * 5
+        print(coords)
 
-# AP1 = access_point('DDDDDADAS', 4, 12, 1.5, 1.5, 2.47)
-# AP2 = access_point('DDDDDADAS', 4, 12, 4.5, 2, 2.86)
-# AP3 = access_point('DDDDDADAS', 4, 12, 7.5, 2.5, 5.35)
-accessPoints = [convert_to_AP(1, coords[0, 0], coords[0, 1], 1, -50, 'AP-INFO1'),
-                convert_to_AP(1, coords[1, 0],
-                              coords[1, 1], 1, -50, 'AP-INFO2'),
-                convert_to_AP(1, coords[2, 0], coords[2, 1], 1, -50, 'AP-INFO3')]
-rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
+        # AP1 = access_point('DDDDDADAS', 4, 12, 1.5, 1.5, 2.47)
+        # AP2 = access_point('DDDDDADAS', 4, 12, 4.5, 2, 2.86)
+        # AP3 = access_point('DDDDDADAS', 4, 12, 7.5, 2.5, 5.35)
+        accessPoints = []
 
-signalStrength = -49
+        # accessPoints = [convert_to_AP(1, coords[0, 0], coords[0, 1], 1, -50, 'AP-INFO1'),
+        #                 convert_to_AP(1, coords[1, 0],
+        #                               coords[1, 1], 1, -50, 'AP-INFO2'),
+        #                 convert_to_AP(1, coords[2, 0], coords[2, 1], 1, -50, 'AP-INFO3')]
+        signalStrengths = []
+        i = 0
+        for ap in row[4]:
+            accessPoints.append(convert_to_AP(
+                1, coords[i, 0], coords[i, 1], 1, -80, ap['name']))
+            i = i+1
+            signalStrengths.append(ap['rssi'])
+        print(accessPoints)
+        rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
 
-distances = rssi_localizer_instance.getDistancesForAllAPs(
-    [-49, -53, -50])
+        distances = rssi_localizer_instance.getDistancesForAllAPs(
+            signalStrengths)
 
+        # distance = rssi_localizer_instance.getDistanceFromAP(
+        #     accessPoints[0], signalStrength)
+        print(distances)
 
-distance = rssi_localizer_instance.getDistanceFromAP(
-    accessPoints[0], signalStrength)
-print(distances)
+        AP1 = access_point('DDDDDADAS', 4, 12,
+                           coords[0, 0], coords[0, 1], float(distances[0]["distance"]))
+        AP2 = access_point('DDDDDADAS', 4, 12,
+                           coords[1, 0], coords[1, 1], float(distances[1]["distance"]))
+        AP3 = access_point('DDDDDADAS', 4, 12,
+                           coords[2, 0], coords[2, 1], float(distances[2]["distance"]))
+        # example with coordinates APinfo
 
-AP1 = access_point('DDDDDADAS', 4, 12,
-                   coords[0, 0], coords[0, 1], float(distances[0]["distance"]))
-AP2 = access_point('DDDDDADAS', 4, 12,
-                   coords[1, 0], coords[1, 1], float(distances[1]["distance"]))
-AP3 = access_point('DDDDDADAS', 4, 12,
-                   coords[2, 0], coords[2, 1], float(distances[2]["distance"]))
-# example with coordinates APinfo
-
-
-trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-              AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+        trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+                      AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
 
 
 def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
     fig, ax = plt.subplots()
-    ax.add_patch(plt.Circle((x0, y0), AP1.rssi, color='r', alpha=0.5))
-    ax.add_patch(plt.Circle((x1, y1), AP2.rssi, color='#00ffff', alpha=0.5))
-    ax.add_artist(plt.Circle((x2, y2), AP3.rssi, color='#000033', alpha=0.5))
+    ax.add_patch(plt.Circle((x0, y0), r0, color='r', alpha=0.5))
+    ax.add_patch(plt.Circle((x1, y1), r1.rssi, color='#00ffff', alpha=0.5))
+    ax.add_artist(plt.Circle((x2, y2), r2.rssi, color='#000033', alpha=0.5))
 
     ax.annotate("AP1", xy=(x0, y0), fontsize=10)
     ax.annotate("AP2", xy=(x1, y1), fontsize=10)
@@ -254,5 +258,6 @@ def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
     plt.show()
 
 
-drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-                  AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+# drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+#                   AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+trilateration_all()
