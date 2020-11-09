@@ -14,7 +14,9 @@ import json
 
 
 accesspoints = []
-observers = []
+observersDavid = []
+observersGerman1 = []
+
 class access_point_profile:
     def __init__(self, host_name, mac, policy, location):
         self.host_name = host_name
@@ -61,19 +63,19 @@ def generateRandomLocation(ap):
         y = np.random.rand() *100 + 400
         ap.x = x
         ap.y = y
-    
-    
+
+
     return ap
 
-def evaluateMatches():
+def evaluateMatches(list, devName):
     print("evaluating observers ... ")
     i = 0
-    for observer in observers:
+    for observer in list:
         for accesspoint in accesspoints:
             if(accesspoint.mac == observer.ap_mac):
-                calculateDistance(observer, accesspoint)
+                calculateDistance(observer, accesspoint, devName)
 
-def calculateDistance(observer, accesspoint):
+def calculateDistance(observer, accesspoint, devName):
     accessPoint = {
     'signalAttenuation': 3,
     'location': {
@@ -81,7 +83,7 @@ def calculateDistance(observer, accesspoint):
         'x': accesspoint.x
     },
     'reference': {
-        'distance': 4,
+        'distance': 0.1,
         'signal': -50
     },
         'name': accesspoint.host_name
@@ -90,7 +92,7 @@ def calculateDistance(observer, accesspoint):
     signalStrength = observer.rssi
     distance = rssi_localizer_instance.getDistanceFromAP(
         accessPoint, int(observer.rssi))
-    print('Phone was seen at ' +observer.seentime + ' for AP: '+ observer.ap_mac + ' at: ') 
+    print('Phone '+ devName + ' was   seen at ' +observer.seentime + ' for AP: '+ accesspoint.host_name + ' at: ')
     print(distance['distance'])
 
 connection = None
@@ -110,28 +112,51 @@ try:
             access_point = access_point_profile(ap[1], ap[2], ap[6], ap[14])
             access_point = generateRandomLocation(access_point)
             accesspoints.append(access_point)
-
-    postgreSQL_select_Query = """SELECT res.mac, res.seenTime, spaces."MAC", res.rssi
-        FROM(SELECT 
+    ## CELULAR DAVID
+    postgreSQL_select_Query = """
+         SELECT res.mac, res.seenTime, spaces."MAC", res.rssi
+        FROM(SELECT
         json_array_elements(data->'data'->'observations')->>'clientMac' as mac,
         json_array_elements(data->'data'->'observations')->>'seenEpoch' as seenEpoch,
         json_array_elements(data->'data'->'observations')->>'seenTime' as seenTime,
         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'apMac' as apMac,
         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'rssi' as rssi
-        FROM example
+        FROM exampleoctober e
         ORDER BY mac,seenTime) as res, spaces
-        WHERE res.mac='322A1BD104C2' 
+        WHERE res.mac='8875989F746A'
         and res.apMac = spaces."MAC";"""
     cursor.execute(postgreSQL_select_Query)
     allData = cursor.fetchall()
     seq = allData
-    #seq.sort(key = lambda x: x[0])
     groups = groupby(seq, lambda x: x[0])
     obs = [[item[:] for item in data] for (key, data) in groups]
     for element in obs:
         for ob in element:
             observer = observers_profile(ob[0], ob[2], ob[3], ob[1])
-            observers.append(observer)
+            observersDavid.append(observer)
+
+     ## CELULAR GERMAN
+        postgreSQL_select_Query = """
+             SELECT res.mac, res.seenTime, spaces."MAC", res.rssi
+            FROM(SELECT
+            json_array_elements(data->'data'->'observations')->>'clientMac' as mac,
+            json_array_elements(data->'data'->'observations')->>'seenEpoch' as seenEpoch,
+            json_array_elements(data->'data'->'observations')->>'seenTime' as seenTime,
+            json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'apMac' as apMac,
+            json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'rssi' as rssi
+            FROM exampleoctober e
+            ORDER BY mac,seenTime) as res, spaces
+            WHERE res.mac='60AB67B94E5D'
+            and res.apMac = spaces."MAC";"""
+        cursor.execute(postgreSQL_select_Query)
+        allData = cursor.fetchall()
+        seq = allData
+        groups = groupby(seq, lambda x: x[0])
+        obs = [[item[:] for item in data] for (key, data) in groups]
+        for element in obs:
+            for ob in element:
+                observer = observers_profile(ob[0], ob[2], ob[3], ob[1])
+                observersGerman1.append(observer)
 
 finally:
     # closing database connection.
@@ -139,6 +164,9 @@ finally:
         cursor.close()
         connection.close()
         print("PostgreSQL connection is closed")
-        evaluateMatches()
+        print('DAVID')
+        evaluateMatches(observersDavid, 'David')
+        print('GERMAN')
+        evaluateMatches(observersGerman1, 'German 1')
         #evaluate()
 
