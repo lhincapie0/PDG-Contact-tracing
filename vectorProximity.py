@@ -154,20 +154,23 @@ tests = [('Test1', 1604170740000, 1604171760000),
 
 def testAverages(metrics):
     for test in tests:
-        valueSum = 0
-        iterations = 0
+        testValues = []
         for metric in metrics:
             if(metric[-1] < test[1]):
                 continue
             elif(metric[-1] >= test[1] and metric[-1] < test[2]):
-                valueSum = valueSum+metric[0]
-                iterations = iterations+1
+                # valueSum = valueSum+metric[0]
+                # iterations = iterations+1
+                testValues.append(metric[0])
             else:
                 break
-        if(iterations == 0):
+        if(len(testValues) == 0):
             print(test[0]+' not performed')
         else:
-            print(test[0]+' Average:'+str(valueSum/iterations))
+            #print(test[0]+' Average:'+str(sum(testValues)/len(testValues)))
+            print(str(np.var(testValues)))
+            # print(test[0]+' Index of Dispersion:' +
+            #       str(np.var(testValues)/(sum(testValues)/len(testValues))))
 
 
 connection = None
@@ -189,7 +192,7 @@ try:
     #     print(metrics)
     macs_list = ['60AB67B94E5D', '8035C14D35F4', '58E6BA7C10E8',
                  '8875989F746A', '34F64B76676D', '2446C8A8C839']
-    #writer = pd.ExcelWriter('output.xlsx', engine='xlsxwriter')
+    # writer = pd.ExcelWriter('output.xlsx', engine='xlsxwriter')
     for mac_suspect in macs_list:
         for mac_infected in macs_list:
             if mac_suspect != mac_infected:
@@ -208,7 +211,7 @@ try:
                 # create DataFrame using data
                 # df = pd.DataFrame(metrics, columns=[
                 #                   'Proximity', 'StartT', 'EndT', 'MeasuredT'])
-                #df.to_excel(writer, mac_infected+'_'+mac_suspect)
+                # df.to_excel(writer, mac_infected+'_'+mac_suspect)
     # writer.save()
 
 finally:
