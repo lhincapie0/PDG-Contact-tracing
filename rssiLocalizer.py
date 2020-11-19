@@ -311,10 +311,10 @@ def trilateration_all():
         # drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
         #                   AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
 
-       # if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 14:59:12 GMT-5":
-        intersections = trilateration2(distances)
-        if len(intersections) > 0:
-            drawTrilateration2(distances, intersections)
+        if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 13:55:12 GMT-5":
+            intersections = trilateration2(distances)
+            if len(intersections) > 0:
+                drawTrilateration2(distances, intersections)
 
 
 trilateration_all()
