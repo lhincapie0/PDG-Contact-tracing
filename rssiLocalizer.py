@@ -4,6 +4,10 @@ from rssi import RSSI_Localizer
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import itertools
+import datetime
+from pytz import timezone
+
 
 EPSILON = 0.000001
 
@@ -116,6 +120,24 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
         print("INTERSECTION AP1 AND AP2 AND AP3:" + " NONE")
 
 
+def trilateration2(APS):
+    intersectionsList = []
+    apsNames = []
+    for AP in APS:
+        apsNames.append(AP['apName'])
+    for AP1, AP2 in itertools.combinations(APS, 2):
+        print(AP1, AP2)
+        intersections = calculate_intersections(
+            float(AP1['x']), float(AP1['y']), float(AP1['distance']),
+            float(AP2['x']), float(AP2['y']), float(AP2['distance']))
+        print(intersections)
+        if intersections != None:
+            print("INTERSECTION " + AP1['apName'] + " AND " + AP2['apName'] + "(" + str(intersections[0]) + ", " + str(intersections[2]) + ")"
+                  + " AND (" + str(intersections[1]) + "," + str(intersections[3]) + ")")
+            intersectionsList.append(intersections)
+    return intersectionsList
+
+
 try:
     connection = psycopg2.connect(user="postgres",
                                   password="firewall990612",
@@ -123,20 +145,22 @@ try:
                                   port="5433",
                                   database="PDGAccessPointsDB")
     cursor = connection.cursor()
-    postgreSQL_select_Query = """SELECT o.id,  
+    postgreSQL_select_Query = """SELECT o.id,
 	o.data->>'seenTime',
 	o.data->>'clientMac',
 	jsonb_array_length(o.data->'deviceObservers') as "Observers",
     JSON_AGG(
         JSON_BUILD_OBJECT('apLocation',
-						  u."Location", 'name', u."Host Name",'mac', e.observers->'apMac', 'rssi',e.observers->'rssi')
+						  u."Location", 'name', u."Host Name",'mac', e.observers->'apMac', 'rssi',e.observers->'rssi','x',r.x,'y',R.y)
     )
     FROM apsfiles o
     INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
     INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
-    WHERE o.data->>'clientMac'='8875989F746A'
-    AND jsonb_array_length(o.data->'deviceObservers')::text::int=3
-    GROUP BY o.id"""
+    INNER JOIN apscoordinates r ON (u."Host Name")::text = r."NOMBRE"
+    WHERE o.data->>'clientMac'='2446C8A8C839'
+    AND jsonb_array_length(o.data->'deviceObservers')::text::int>=2
+    GROUP BY o.id
+    ORDER BY o.data->>'seenTime'"""
 
     cursor.execute(postgreSQL_select_Query)
     print("Selecting rows from apinfo table using cursor.fetchall")
@@ -181,57 +205,12 @@ def calculateDistance(rssi):
         return distance
 
 
-def trilateration_all():
-
-    for row in aps_records:
-        # EXAMPLE PAPER
-        coords = np.random.rand(int(row[3]), 2) * 5
-        print(coords)
-
-        # AP1 = access_point('DDDDDADAS', 4, 12, 1.5, 1.5, 2.47)
-        # AP2 = access_point('DDDDDADAS', 4, 12, 4.5, 2, 2.86)
-        # AP3 = access_point('DDDDDADAS', 4, 12, 7.5, 2.5, 5.35)
-        accessPoints = []
-
-        # accessPoints = [convert_to_AP(1, coords[0, 0], coords[0, 1], 1, -50, 'AP-INFO1'),
-        #                 convert_to_AP(1, coords[1, 0],
-        #                               coords[1, 1], 1, -50, 'AP-INFO2'),
-        #                 convert_to_AP(1, coords[2, 0], coords[2, 1], 1, -50, 'AP-INFO3')]
-        signalStrengths = []
-        i = 0
-        for ap in row[4]:
-            accessPoints.append(convert_to_AP(
-                1, coords[i, 0], coords[i, 1], 1, -80, ap['name']))
-            i = i+1
-            signalStrengths.append(ap['rssi'])
-        print(accessPoints)
-        rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
-
-        distances = rssi_localizer_instance.getDistancesForAllAPs(
-            signalStrengths)
-
-        # distance = rssi_localizer_instance.getDistanceFromAP(
-        #     accessPoints[0], signalStrength)
-        print(distances)
-
-        AP1 = access_point('DDDDDADAS', 4, 12,
-                           coords[0, 0], coords[0, 1], float(distances[0]["distance"]))
-        AP2 = access_point('DDDDDADAS', 4, 12,
-                           coords[1, 0], coords[1, 1], float(distances[1]["distance"]))
-        AP3 = access_point('DDDDDADAS', 4, 12,
-                           coords[2, 0], coords[2, 1], float(distances[2]["distance"]))
-        # example with coordinates APinfo
-
-        trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-                      AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
-
-
 def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
     fig, ax = plt.subplots()
     ax.add_patch(plt.Circle((x0, y0), r0, color='r', alpha=0.5))
-    ax.add_patch(plt.Circle((x1, y1), r1.rssi, color='#00ffff', alpha=0.5))
-    ax.add_artist(plt.Circle((x2, y2), r2.rssi, color='#000033', alpha=0.5))
+    ax.add_patch(plt.Circle((x1, y1), r1, color='#00ffff', alpha=0.5))
+    ax.add_artist(plt.Circle((x2, y2), r2, color='#000033', alpha=0.5))
 
     ax.annotate("AP1", xy=(x0, y0), fontsize=10)
     ax.annotate("AP2", xy=(x1, y1), fontsize=10)
@@ -239,7 +218,7 @@ def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
     intersections = calculate_intersections(x0, y0, r0, x1, y1, r1)
     if(intersections != None):
-        print(intersections)
+
         plt.plot([intersections[0], intersections[1]], [
                  intersections[2], intersections[3]], '.', color='r')
 
@@ -258,6 +237,84 @@ def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
     plt.show()
 
 
-# drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-#                   AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+def drawTrilateration2(APS, intersections):
+
+    fig, ax = plt.subplots()
+    for AP in APS:
+        ax.add_patch(plt.Circle((AP['x'], AP['y']),
+                                AP['distance'], color='r', alpha=0.5))
+        ax.annotate(AP['apName'], xy=(AP['x'], AP['y']), fontsize=10)
+
+    for i in intersections:
+        plt.plot([i[0], i[1]], [
+                 i[2], i[3]], '.', color='#000000')
+
+    ax.set_aspect('equal', adjustable='datalim')
+    ax.plot()
+    plt.show()
+
+
+def trilateration_all():
+
+    for row in aps_records:
+        # EXAMPLE PAPER
+        coords = np.random.rand(int(row[3]), 2) * 5
+
+        accessPoints = []
+
+        # accessPoints = [convert_to_AP(1, coords[0, 0], coords[0, 1], 1, -50, 'AP-INFO1'),
+        #                 convert_to_AP(1, coords[1, 0],
+        #                               coords[1, 1], 1, -50, 'AP-INFO2'),
+        #                 convert_to_AP(1, coords[2, 0], coords[2, 1], 1, -50, 'AP-INFO3')]
+        signalStrengths = []
+        i = 0
+        names = []
+        for ap in row[4]:
+            accessPoints.append(convert_to_AP(
+                1, ap['x'], ap['y'], 1, -80, ap['name']))
+            i = i+1
+            signalStrengths.append(ap['rssi'])
+            names.append(ap['name'])
+
+        rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
+
+        distances = rssi_localizer_instance.getDistancesForAllAPs(
+            signalStrengths)
+        for d in distances:
+            d['apName'] = names[distances.index(d)]
+
+        # distance = rssi_localizer_instance.getDistanceFromAP(
+        #     accessPoints[0], signalStrength)
+        # print(distances)
+
+        # AP1 = access_point('DDDDDADAS', 4, 12,
+        #                    float(distances[0]["x"]), float(distances[0]["y"]), float(distances[0]["distance"]))
+        # AP2 = access_point('DDDDDADAS', 4, 12,
+        #                    float(distances[1]["x"]), float(distances[1]["y"]), float(distances[1]["distance"]))
+        # AP3 = access_point('DDDDDADAS', 4, 12,
+        #                    float(distances[2]["x"]), float(distances[2]["y"]), float(distances[2]["distance"]))
+
+        date_time_obj = datetime.datetime.strptime(
+            row[1], '%Y-%m-%dT%H:%M:%S.%fZ')
+        basedate = row[1]
+        formatfrom = "%Y-%m-%dT%H:%M:%S.%fZ"
+        formatto = "%a %d %b %Y, %H:%M:%S GMT-5"
+
+        east = timezone('UTC')
+        colombia = timezone('America/Bogota')
+        loc_dt = east.localize(datetime.datetime.strptime(
+            basedate, formatfrom))
+
+        print(loc_dt.astimezone(colombia).strftime(formatto))
+        # trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+        #               AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+        # drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
+        #                   AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
+
+       # if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 14:59:12 GMT-5":
+        intersections = trilateration2(distances)
+        if len(intersections) > 0:
+            drawTrilateration2(distances, intersections)
+
+
 trilateration_all()
