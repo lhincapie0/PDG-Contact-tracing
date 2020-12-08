@@ -152,7 +152,8 @@ tests = [('Test1', 1604170740000, 1604171760000),
          ]
 
 
-def testAverages(metrics):
+def testAverages(metrics, suspect, infected):
+    ret = ()
     for test in tests:
         testValues = []
         for metric in metrics:
@@ -165,12 +166,17 @@ def testAverages(metrics):
             else:
                 break
         if(len(testValues) == 0):
-            print(test[0]+' not performed')
+            ret1 = ('NP', 'NP', 'NP')
         else:
-            #print(test[0]+' Average:'+str(sum(testValues)/len(testValues)))
-            print(str(np.var(testValues)))
-            # print(test[0]+' Index of Dispersion:' +
-            #       str(np.var(testValues)/(sum(testValues)/len(testValues))))
+            average = sum(testValues)/len(testValues)
+            stdev = np.std(testValues)
+            iod = np.var(testValues)/(sum(testValues)/len(testValues))
+            ret1 = (average, stdev, iod)
+        ret = ret+ret1
+    ret = (suspect, infected) + ret
+    # print(ret)
+    series = pd.Series(ret)
+    return series
 
 
 connection = None
@@ -193,6 +199,7 @@ try:
     macs_list = ['60AB67B94E5D', '8035C14D35F4', '58E6BA7C10E8',
                  '8875989F746A', '34F64B76676D', '2446C8A8C839']
     # writer = pd.ExcelWriter('output.xlsx', engine='xlsxwriter')
+    df = pd.DataFrame()
     for mac_suspect in macs_list:
         for mac_infected in macs_list:
             if mac_suspect != mac_infected:
@@ -207,12 +214,15 @@ try:
                 suspect_profile = signal_profile(records)
                 metrics = signal_metrics(infected_continuous, suspect_profile)
                 print('Analisis para: '+mac_infected+' con: '+mac_suspect)
-                testAverages(metrics)
+                series = testAverages(metrics, mac_suspect, mac_infected)
+                df = df.append(series, ignore_index=True)
                 # create DataFrame using data
                 # df = pd.DataFrame(metrics, columns=[
                 #                   'Proximity', 'StartT', 'EndT', 'MeasuredT'])
                 # df.to_excel(writer, mac_infected+'_'+mac_suspect)
     # writer.save()
+    df.to_excel('test.xlsx')
+    print(df)
 
 finally:
     # closing database connection.
