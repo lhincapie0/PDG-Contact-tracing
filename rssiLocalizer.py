@@ -12,11 +12,13 @@ from itertools import groupby
 from operator import itemgetter
 import json
 import csv
-
+import os
 
 accesspoints = []
 observers = []
-observersGerman1 = []
+default_distance_AP = 1
+default_signal_AP = -80
+lastObserver = []
 
 class access_point_profile:
     def __init__(self, host_name, mac, policy, location):
@@ -32,11 +34,18 @@ class access_point_profile:
         self.y = 0
 
 class observers_profile:
-    def __init__(self, mac, ap_mac, rssi, seentime):
+    def __init__(self, mac, ap_mac, rssi, seentime, time):
         self.mac = mac
         self.ap_mac = ap_mac
         self.rssi = rssi
         self.seentime = seentime
+        self.time = time
+
+
+class seen_profile:
+    def __init__(self, seentimeId):
+        self.seentimeId = seentimeId
+        self.observers = []
 
 def generateRandomLocation(ap):
     ed_e = ap.location.find("Edificio E")
@@ -69,23 +78,17 @@ def generateRandomLocation(ap):
     return ap
 
 def evaluateMatches(list, devName):
-    print("evaluating observers ... ")
+    print("evaluating observers for... "+devName)
     i = 0
     fileName = devName+'.csv'
-    print(fileName)
+    if os.path.exists(fileName):
+        os.remove(fileName)
 
     for observer in list:
         for accesspoint in accesspoints:
-             with open (fileName, 'a') as csvfile:
+            with open (fileName, 'a') as csvfile:
                 fieldnames = ['Device Mac', 'AP Mac', 'Seentime', 'Distance from AP']
-                print(fieldnames)
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-                #csv.DictWriter(csvfile, fieldnames=fieldnames)
-                 #       print(fieldnames)
-                  #      writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                   #     print(writer)
-                    #    writer.writerow({'product_patterns':product, 'filename':filenames_list[index]})
                 if(accesspoint.mac == observer.ap_mac):
                     calculateDistance(observer, accesspoint, devName, writer)
 
@@ -97,8 +100,8 @@ def calculateDistance(observer, accesspoint, devName, writer):
         'x': accesspoint.x
     },
     'reference': {
-        'distance': 0.1,
-        'signal': -50
+        'distance': default_distance_AP,
+        'signal': -default_signal_AP,
     },
         'name': accesspoint.host_name
     }
@@ -106,10 +109,8 @@ def calculateDistance(observer, accesspoint, devName, writer):
     signalStrength = observer.rssi
     distance = rssi_localizer_instance.getDistanceFromAP(
         accessPoint, int(observer.rssi))
-        # TODO uncomment
-    #print('Phone '+ devName + ' was   seen at ' +observer.seentime + ' for AP: '+ accesspoint.host_name + ' at: ')
-    #print(distance['distance'])
     writer.writerow({'Device Mac':devName, 'AP Mac': accesspoint.host_name, 'Seentime': observer.seentime, 'Distance from AP': distance['distance']})
+    lastObserver = observer
 
 
 connection = None
@@ -134,9 +135,10 @@ try:
                      '8875989F746A', '34F64B76676D', '2446C8A8C839']
     for mac_device in macs_list:
         print(mac_device)
+        seentimes = []
         ## CELULAR DAVID
         postgreSQL_select_Query = """
-             SELECT res.mac, res.seenTime, spaces."MAC", res.rssi
+             SELECT res.mac, res.seenTime, spaces."MAC", res.rssi, res.seenEpoch
             FROM(SELECT
             json_array_elements(data->'data'->'observations')->>'clientMac' as mac,
             json_array_elements(data->'data'->'observations')->>'seenEpoch' as seenEpoch,
@@ -154,9 +156,14 @@ try:
         obs = [[item[:] for item in data] for (key, data) in groups]
         for element in obs:
             for ob in element:
-                observer = observers_profile(ob[0], ob[2], ob[3], ob[1])
+                observer = observers_profile(ob[0], ob[2], ob[3], ob[1], ob[4])
                 observers.append(observer)
+                seen = seen_profile(ob[1])
         evaluateMatches(observers, mac_device)
+
+        #for seen in seentimes:
+            ##print(seen.seentimeId)
+            #print(len(seen.observers))
 
 
 finally:
@@ -165,6 +172,6 @@ finally:
         cursor.close()
         connection.close()
         print("PostgreSQL connection is closed")
-        #evaluateMatches(observersGerman1, 'German 1')
+
         #evaluate()
 
