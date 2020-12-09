@@ -27,7 +27,7 @@ try:
     connection = psycopg2.connect(
         user="postgres", password="postgres", host="127.0.0.1", port="5432", database="pdgdata")
     cursor = connection.cursor()
-    postgreSQL_select_Query = "SELECT * FROM(SELECT json_array_elements(data->'data'->'observations')->>'clientMac' as mac,json_array_elements(data->'data'->'observations')->>'seenTime' as time,json_array_length(json_array_elements(data->'data'->'observations')->'deviceObservers') as observers FROM public.example ORDER BY mac,time) as res WHERE res.mac='2446C8A8C839';"
+    postgreSQL_select_Query = "SELECT * FROM(SELECT json_array_elements(data->'data'->'observations')->>'clientMac' as mac,json_array_elements(data->'data'->'observations')->>'seenTime' as time,json_array_length(json_array_elements(data->'data'->'observations')->'deviceObservers') as observers FROM public.example2dic ORDER BY mac,time) as res WHERE res.mac='F81F32F89FB4';"
 
     cursor.execute(postgreSQL_select_Query)
     print("Doing select time, mac and observers")
