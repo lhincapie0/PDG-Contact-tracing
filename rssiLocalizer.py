@@ -7,7 +7,7 @@ import pandas as pd
 import itertools
 import datetime
 from pytz import timezone
-
+import openpyxl
 
 EPSILON = 0.000001
 
@@ -151,14 +151,15 @@ try:
 	jsonb_array_length(o.data->'deviceObservers') as "Observers",
     JSON_AGG(
         JSON_BUILD_OBJECT('apLocation',
-						  u."Location", 'name', u."Host Name",'mac', e.observers->'apMac', 'rssi',e.observers->'rssi','x',r.x,'y',R.y)
+						  u."Location", 'name', u."Host Name",'mac', e.observers->'apMac', 'rssi',e.observers->'rssi',
+                          'x',r.x,'y',R.y,'lat',r.lat,'lng',r.lng)
     )
     FROM apsfiles o
     INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
     INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
     INNER JOIN apscoordinates r ON (u."Host Name")::text = r."NOMBRE"
-    WHERE o.data->>'clientMac'='2446C8A8C839'
-    AND jsonb_array_length(o.data->'deviceObservers')::text::int>=2
+    WHERE o.data->>'clientMac'='F81F32F8A5D4'
+    AND jsonb_array_length(o.data->'deviceObservers')::text::int>=3
     GROUP BY o.id
     ORDER BY o.data->>'seenTime'"""
 
@@ -166,6 +167,47 @@ try:
     print("Selecting rows from apinfo table using cursor.fetchall")
     aps_records = cursor.fetchall()
 
+    cursor2 = connection.cursor()
+    postgreSQL_select_Query2 = """SELECT o.id,  
+	o.data->>'seenTime',
+	o.data->>'clientMac',
+	o.data->>'lat',
+	o.data->>'lng',
+	r."NOMBRE"
+    FROM apsfiles o
+    INNER JOIN apscoordinates r ON (o.data->>'lat')::text = r.lat::text
+    WHERE o.data->>'clientMac'='F81F32F89FB4'
+    GROUP BY o.id,r."NOMBRE"
+    ORDER BY o.data->>'seenTime'"""
+
+    cursor2.execute(postgreSQL_select_Query2)
+    aps_latlng = cursor2.fetchall()
+
+    cursor3 = connection.cursor()
+    postgreSQL_select_Query3 = """SELECT o.id,  
+	o.data->>'seenTime',
+	o.data->>'clientMac',
+	o.data->>'lat',
+	o.data->>'lng',
+	o.data->>'x',
+	o.data->>'y',
+	jsonb_array_length(o.data->'deviceObservers') as "Observers",
+    JSON_AGG(
+        JSON_BUILD_OBJECT('apLocation',
+						  u."Location", 'name', u."Host Name",'mac', e.observers->'apMac', 'rssi',e.observers->'rssi')
+    )
+    FROM apsfiles o
+    INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
+    INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
+    WHERE o.data->>'clientMac'='F81F32F8A5D4'
+    AND u."Host Name"='AP-E04-P4-E-05'
+    AND substring(o.data->>'seenTime',12,16)>='20:37'
+    AND substring(o.data->>'seenTime',12,16)<='21:01'
+    GROUP BY o.id
+    ORDER BY o.data->>'seenTime'"""
+
+    cursor3.execute(postgreSQL_select_Query3)
+    aps_rssi = cursor3.fetchall()
     print("Print each row and it's columns values")
 
 #  for row in aps_records:
@@ -237,7 +279,61 @@ def drawTrilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
     plt.show()
 
 
-def drawTrilateration2(APS, intersections):
+def showLatLong():
+    aps = []
+    for ap in aps_latlng:
+        date_time_obj = datetime.datetime.strptime(
+            ap[1], '%Y-%m-%dT%H:%M:%S.%fZ')
+        basedate = ap[1]
+        formatfrom = "%Y-%m-%dT%H:%M:%S.%fZ"
+        formatto = "%a %d %b %Y, %H:%M:%S GMT-5"
+
+        east = timezone('UTC')
+        colombia = timezone('America/Bogota')
+        loc_dt = east.localize(datetime.datetime.strptime(
+            basedate, formatfrom))
+        a = (loc_dt.astimezone(colombia).strftime(
+            formatto), ap[2], ap[3], ap[4], ap[5])
+        aps.append(a)
+
+    wb = openpyxl.Workbook()
+    hoja = wb.active
+    # Crea la fila del encabezado con los títulos
+    hoja.append(('Tiempo', 'MAC', 'Lat', 'Long', 'AP Cercano'))
+    for ap in aps:
+        # producto es una tupla con los valores de un producto
+        hoja.append(ap)
+    wb.save('device1.xlsx')
+
+
+def calculateRssiReference():
+    aps = []
+    for ap in aps_rssi:
+        date_time_obj = datetime.datetime.strptime(
+            ap[1], '%Y-%m-%dT%H:%M:%S.%fZ')
+        basedate = ap[1]
+        formatfrom = "%Y-%m-%dT%H:%M:%S.%fZ"
+        formatto = "%a %d %b %Y, %H:%M:%S GMT-5"
+
+        east = timezone('UTC')
+        colombia = timezone('America/Bogota')
+        loc_dt = east.localize(datetime.datetime.strptime(
+            basedate, formatfrom))
+        a = (loc_dt.astimezone(colombia).strftime(
+            formatto), ap[2], ap[8][0]['rssi'])
+        aps.append(a)
+
+    wb = openpyxl.Workbook()
+    hoja = wb.active
+    # Crea la fila del encabezado con los títulos
+    hoja.append(('Tiempo', 'MAC', 'rssi'))
+    for ap in aps:
+        # producto es una tupla con los valores de un producto
+        hoja.append(ap)
+    wb.save('rssi5.xlsx')
+
+
+def drawTrilateration2(APS, intersections, time):
 
     fig, ax = plt.subplots()
     for AP in APS:
@@ -251,6 +347,7 @@ def drawTrilateration2(APS, intersections):
 
     ax.set_aspect('equal', adjustable='datalim')
     ax.plot()
+    ax.set_title(time)
     plt.show()
 
 
@@ -311,10 +408,13 @@ def trilateration_all():
         # drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
         #                   AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
 
-        if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 13:55:12 GMT-5":
-            intersections = trilateration2(distances)
-            if len(intersections) > 0:
-                drawTrilateration2(distances, intersections)
+       # if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 13:55:12 GMT-5":
+        intersections = trilateration2(distances)
+        if len(intersections) > 0:
+            drawTrilateration2(distances, intersections,
+                               loc_dt.astimezone(colombia).strftime(formatto))
 
 
 trilateration_all()
+# calculateRssiReference()
+# showLatLong()
