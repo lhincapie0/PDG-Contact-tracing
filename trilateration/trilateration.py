@@ -46,18 +46,18 @@ def saveObserversInfo(observers):
   return observersList
 
 def handleTimeRange(observers):
-    print(len(observers))
     momentsProfile = []
     moments = []
 
+
     for observer in observers:
+        observer.get('seentime')
         if observer.get('seentime') not in moments:
             moments.append(observer.get('seentime'))
             momentsProfile.append(momentProfile(observer.get('seentime')))
         else:
             increaseObserverNumber(momentsProfile, observer.get('seentime'))
 
-    print(len(momentsProfile))
     for mom in momentsProfile:
        print(mom)
 
