@@ -14,10 +14,6 @@ accessPoints = []
 accessPointsMacs = []
 observers = []
 
-def groupedByDate(item):
-    d = parse(item.get(seentime))
-    return d
-
 def handleDeviceInformation(deviceMac, accessPoints, accessPointsMacs):
     dev = databaseService.fetchDeviceObserversInfo(deviceMac)
     observers = trilateration.saveObserversInfo(dev)
@@ -31,7 +27,7 @@ def init():
   for ap in apsMacs:
     for info in ap:
         accessPointsMacs.append(trilateration.handleAPMacInfo(info))
-  handleDeviceInformation('F81F32F8A61E', accessPoints, accessPointsMacs)
+  handleDeviceInformation('2446C8A8C839', accessPoints, accessPointsMacs)
 
 
 
