@@ -36,7 +36,7 @@ def fetchDeviceObserversInfo(mac_device):
                         json_array_elements(data->'data'->'observations')->>'seenTime' as seenTime,
                         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'apMac' as apMac,
                         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'rssi' as rssi
-                        FROM pruebasdiciembre e
+                        FROM pruebasdiciembre2 e
                         ORDER BY mac,seenTime) as res
                         WHERE res.mac='"""+mac_device+"';"""
         cursor.execute(postgreSQL_select_Query)
@@ -53,6 +53,29 @@ def fetchDeviceObserversInfo(mac_device):
             connection.close()
             print("PostgreSQL connection is closed")
             return observers
+
+def fetchAccessPointsMacInfo():
+    print("Starting to fetch access points information")
+    connection = None
+    try:
+        connection = psycopg2.connect(
+            user=POSTGRES_USER, password=POSTGRES_PASSWORD, host=POSTGRES_HOST, port=POSTGRES_PORT, database=DATABASE_NAME)
+        cursor = connection.cursor()
+        postgreSQL_select_Query = "SELECT * FROM spaces;"
+        cursor.execute(postgreSQL_select_Query)
+        allData = cursor.fetchall()
+        seq = allData
+
+        groups = groupby(seq, lambda x: x[0])
+        aps = [[item[:] for item in data] for (key, data) in groups]
+
+    finally:
+        # closing database connection.
+        if(connection):
+            cursor.close()
+            connection.close()
+            print("PostgreSQL connection is closed")
+            return aps
 
 def fetchAccessPointsInfo():
     print("Starting to fetch access points information")
