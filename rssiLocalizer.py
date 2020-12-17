@@ -122,6 +122,7 @@ def trilateration(x0, y0, r0, x1,  y1, r1, x2, y2, r2):
 
 def trilateration2(APS):
     intersectionsList = []
+    intersectionsxy = []
     apsNames = []
     for AP in APS:
         apsNames.append(AP['apName'])
@@ -135,7 +136,23 @@ def trilateration2(APS):
             print("INTERSECTION " + AP1['apName'] + " AND " + AP2['apName'] + "(" + str(intersections[0]) + ", " + str(intersections[2]) + ")"
                   + " AND (" + str(intersections[1]) + "," + str(intersections[3]) + ")")
             intersectionsList.append(intersections)
-    return intersectionsList
+            intersections1 = [intersections[0], intersections[2]]
+            intersections2 = [intersections[1], intersections[3]]
+            intersectionsxy.append(intersections1)
+            intersectionsxy.append(intersections2)
+    return [intersectionsList, intersectionsxy]
+
+
+def trackPhone(x1, y1, r1, x2, y2, r2, x3, y3, r3):
+    A = 2*x2 - 2*x1
+    B = 2*y2 - 2*y1
+    C = r1**2 - r2**2 - x1**2 + x2**2 - y1**2 + y2**2
+    D = 2*x3 - 2*x2
+    E = 2*y3 - 2*y2
+    F = r2**2 - r3**2 - x2**2 + x3**2 - y2**2 + y3**2
+    x = (C*E - F*B) / (E*A - B*D)
+    y = (C*D - A*F) / (B*D - A*E)
+    return x, y
 
 
 try:
@@ -158,8 +175,10 @@ try:
     INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
     INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
     INNER JOIN apscoordinates r ON (u."Host Name")::text = r."NOMBRE"
-    WHERE o.data->>'clientMac'='F81F32F8A5D4'
-    AND jsonb_array_length(o.data->'deviceObservers')::text::int>=3
+    WHERE o.data->>'clientMac'='2446C8A8C839'
+    AND jsonb_array_length(o.data->'deviceObservers')::text::int>=1
+    AND substring(o.data->>'seenTime',12,16)>='19:02'
+    AND substring(o.data->>'seenTime',12,16)<='19:17'
     GROUP BY o.id
     ORDER BY o.data->>'seenTime'"""
 
@@ -168,7 +187,7 @@ try:
     aps_records = cursor.fetchall()
 
     cursor2 = connection.cursor()
-    postgreSQL_select_Query2 = """SELECT o.id,  
+    postgreSQL_select_Query2 = """SELECT o.id,
 	o.data->>'seenTime',
 	o.data->>'clientMac',
 	o.data->>'lat',
@@ -184,7 +203,7 @@ try:
     aps_latlng = cursor2.fetchall()
 
     cursor3 = connection.cursor()
-    postgreSQL_select_Query3 = """SELECT o.id,  
+    postgreSQL_select_Query3 = """SELECT o.id,
 	o.data->>'seenTime',
 	o.data->>'clientMac',
 	o.data->>'lat',
@@ -333,6 +352,39 @@ def calculateRssiReference():
     wb.save('rssi5.xlsx')
 
 
+def printDistancesComparation(APS):
+    aps = []
+    for ap in APS:
+        date_time_obj = datetime.datetime.strptime(
+            ap['time'], '%Y-%m-%dT%H:%M:%S.%fZ')
+        basedate = ap['time']
+        formatfrom = "%Y-%m-%dT%H:%M:%S.%fZ"
+        formatto = "%a %d %b %Y, %H:%M:%S GMT-5"
+
+        east = timezone('UTC')
+        colombia = timezone('America/Bogota')
+        loc_dt = east.localize(datetime.datetime.strptime(
+            basedate, formatfrom))
+        error = math.pow((ap['distance'] - ap['realdistance']), 2)
+        a = (loc_dt.astimezone(colombia).strftime(
+            formatto), ap['name'], ap['rssi'], ap['distance'], ap['realdistance'], error)
+        aps.append(a)
+
+    wb = openpyxl.Workbook()
+    hoja = wb.active
+    # Crea la fila del encabezado con los títulos
+    hoja.append(('Tiempo', 'NOMBRE AP', 'rssi',
+                 'Distancia Metodo', 'Distancia Real', 'Error'))
+    for ap in aps:
+
+        hoja.append(ap)
+    wb.save('distancias2.xlsx')
+
+
+def distanceRealFromDevice(x1, y1, x2, y2):
+    return math.sqrt((x2-x1)**2+(y2-y1)**2)
+
+
 def drawTrilateration2(APS, intersections, time):
 
     fig, ax = plt.subplots()
@@ -351,8 +403,47 @@ def drawTrilateration2(APS, intersections, time):
     plt.show()
 
 
-def trilateration_all():
+def calculatedistanceRssi(rssi, measuredpower, N):
+    return math.pow(10, ((measuredpower - (rssi))/(10 * N)))
 
+
+def accurateIntersection(time, intersections, x, y):
+
+    distances = []
+    aps = []
+    for i in intersections:
+
+        distances.append(distanceRealFromDevice(
+            i[0], i[1], x, y))
+
+    minDistance = min(distances)
+    coords = distances.index(minDistance)
+    errorx = math.pow((intersections[coords][0] - x), 2)
+    errory = math.pow((intersections[coords][1] - y), 2)
+
+    a = (time, intersections[coords][0], intersections[coords]
+         [1], x, y, errorx, errory, minDistance)
+
+    return a
+
+
+def printResultsMethods(aps):
+
+    wb = openpyxl.Workbook()
+    hoja = wb.active
+    # Crea la fila del encabezado con los títulos
+    hoja.append(('Tiempo', 'Intersection X', 'Intersection Y',
+                 'Ubicacion X', 'Ubicacion Y', 'Error Cuadrado X',
+                 'Error Cuadrado Y', 'Distancia a ubicacion real'))
+    for ap in aps:
+
+        hoja.append(ap)
+    wb.save('ubicacionesTriangulacion1.xlsx')
+
+
+def trilateration_all():
+    APSObservers = []
+    Results = []
     for row in aps_records:
         # EXAMPLE PAPER
         coords = np.random.rand(int(row[3]), 2) * 5
@@ -366,12 +457,22 @@ def trilateration_all():
         signalStrengths = []
         i = 0
         names = []
+        APSTrilateration = []
+        tuplesIntersections = []
         for ap in row[4]:
             accessPoints.append(convert_to_AP(
-                1, ap['x'], ap['y'], 1, -80, ap['name']))
+                1, ap['x'], ap['y'], 2, -50, ap['name']))
             i = i+1
             signalStrengths.append(ap['rssi'])
             names.append(ap['name'])
+
+            APSObservers.append(
+                {'time': row[1], 'rssi': ap['rssi'], 'name': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -50, 3.6),
+                 'realdistance': distanceRealFromDevice(ap['x'], ap['y'], 19.934, 8.580)})
+
+            APSTrilateration.append(
+                {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -50, 3.6),
+                 'x': ap['x'], 'y': ap['y']})
 
         rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
 
@@ -379,17 +480,8 @@ def trilateration_all():
             signalStrengths)
         for d in distances:
             d['apName'] = names[distances.index(d)]
-
-        # distance = rssi_localizer_instance.getDistanceFromAP(
-        #     accessPoints[0], signalStrength)
-        # print(distances)
-
-        # AP1 = access_point('DDDDDADAS', 4, 12,
-        #                    float(distances[0]["x"]), float(distances[0]["y"]), float(distances[0]["distance"]))
-        # AP2 = access_point('DDDDDADAS', 4, 12,
-        #                    float(distances[1]["x"]), float(distances[1]["y"]), float(distances[1]["distance"]))
-        # AP3 = access_point('DDDDDADAS', 4, 12,
-        #                    float(distances[2]["x"]), float(distances[2]["y"]), float(distances[2]["distance"]))
+        distancesPrueba = [{'distance': 7.206, 'x': 63.602, 'y': 17.831, 'apName': 'AP-E04-P4-A-19'}, {
+            'distance': 12.249, 'x': 63.271, 'y': 5.633, 'apName': 'AP-E04-P4-E-05'}]
 
         date_time_obj = datetime.datetime.strptime(
             row[1], '%Y-%m-%dT%H:%M:%S.%fZ')
@@ -403,18 +495,30 @@ def trilateration_all():
             basedate, formatfrom))
 
         print(loc_dt.astimezone(colombia).strftime(formatto))
-        # trilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-        #               AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
-        # drawTrilateration(AP1.x, AP1.y, AP1.rssi, AP2.x,
-        #                   AP2.y, AP2.rssi, AP3.x, AP3.y, AP3.rssi)
 
        # if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 13:55:12 GMT-5":
-        intersections = trilateration2(distances)
-        if len(intersections) > 0:
-            drawTrilateration2(distances, intersections,
+        intersections = trilateration2(APSTrilateration)
+
+        if len(intersections[0]) > 0:
+            drawTrilateration2(APSTrilateration, intersections[0],
                                loc_dt.astimezone(colombia).strftime(formatto))
+            devicexM, deviceyM = 70.522, 15.821
+            devicexAAN, deviceyAAN = 19.934, 8.580
+
+            Results.append(accurateIntersection(loc_dt.astimezone(
+                colombia).strftime(formatto), intersections[1], devicexAAN, deviceyAAN))
+
+        # for AP1, AP2, AP3 in itertools.combinations(APSTrilateration, 3):
+
+        #     print(trackPhone(AP1['x'], AP1['y'], AP1['distance'], AP2['x'], AP2['y'], AP2['distance'],
+        #                      AP3['x'], AP3['y'], AP3['distance']))
+        # printDistancesComparation(APSObservers)
+        #print(distanceRealFromDevice(63.602, 17.831, 70.522, 15.821))
+        # print(AllIntersections)
+        # printResultsMethods(Results)
 
 
 trilateration_all()
 # calculateRssiReference()
 # showLatLong()
+# print(calculateDistance(-63))
