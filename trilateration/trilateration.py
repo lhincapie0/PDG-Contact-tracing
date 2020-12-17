@@ -111,16 +111,23 @@ def observerApProfile(observer, ap):
         "seentime": observer.get('seentime')
     }
 
-def trilat(momentsProfile, observers, accessPoints,apMacs):
+def trilat(momentsProfile, observers, accessPoints,apMacs,distanceMethod):
     for moment in momentsProfile:
         if moment.get('observers_number') > 2:
-            executeTrilateration(moment, observers, accessPoints,apMacs)
+            executeTrilateration(moment, observers, accessPoints,apMacs, distanceMethod)
 
 def getDistanceFromAP(observation, accessPoint):
     rssi = int(observation.get('rssi'))
     measuredPower = -52
     N = 4
     return pow(10, (measuredPower-rssi)/(10*N))
+
+def getDistanceFromAP_ITU(observation, accessPoint):
+    rssi = int(observation.get('rssi'))
+    logF= 67.604224
+    distance = (rssi - logF + 28) / 30 
+    print(distance)
+    return distance
 
 def findAccessPointByMac(apMac, accessPoints, apMacs):
     ap = ''
@@ -138,7 +145,8 @@ def findAccessPointByMac(apMac, accessPoints, apMacs):
     ##for ap in accessPoints:
         ##print(ap.get("nombre"))
 
-def executeTrilateration(moment, observers,accessPoints, apMacs):
+
+def executeTrilateration(moment, observers,accessPoints, apMacs, distanceMethod):
    foundAps = 0;
    observations = []
    deviceObservers = []
@@ -146,11 +154,12 @@ def executeTrilateration(moment, observers,accessPoints, apMacs):
         if observer.get('seentime') == moment.get('seentime'):
             observations.append(observer)
    for obs in observations:
-        if obs.get('apMac') == apNotRegister:
-            accessPoint = findAccessPointByMac(apToMatch, accessPoints,apMacs)
+        accessPoint = findAccessPointByMac(obs.get('apMac'), accessPoints,apMacs)
+        if distanceMethod == 1:
+            obs["distance"] = getDistanceFromAP(obs, accessPoint)
         else:
-            accessPoint = findAccessPointByMac(obs.get('apMac'), accessPoints,apMacs)
-        obs["distance"] = getDistanceFromAP(obs, accessPoint)
+            obs["distance"] = getDistanceFromAP_ITU(obs, accessPoint)
+
         if accessPoint != '':
             foundAps += 1
             deviceObservers.append(observerApProfile(obs, accessPoint))
@@ -167,6 +176,7 @@ def drawTrilateration(deviceObservers):
     intersections = []
     for do in deviceObservers:
          if do.get('name') != None:
+            seentime = do.get('seentime')
             ax.add_patch(plt.Circle((do.get('apX'), do.get('apY')), do.get('distance'), color='b', alpha=0.5))
             ax.annotate(do.get('name'), xy=(do.get('apX'), do.get('apY')), fontsize=10)
             for do1 in deviceObservers:
@@ -179,6 +189,7 @@ def drawTrilateration(deviceObservers):
 
     ax.set_aspect('equal', adjustable='datalim')
     ax.plot()
+    ax.set_title(seentime)
     plt.show()
 
 
