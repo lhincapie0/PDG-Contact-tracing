@@ -175,13 +175,11 @@ try:
     INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
     INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
     INNER JOIN apscoordinates r ON (u."Host Name")::text = r."NOMBRE"
-    WHERE (o.data->>'clientMac'='60AB67B94E5D'
-	OR o.data->>'clientMac'='2446C8A8C839'
-	OR o.data->>'clientMac'='F81F32F8AA94')
+    WHERE (o.data->>'clientMac'='F81F32F8A5D4'
+	OR o.data->>'clientMac'='F81F32F8A61E'
+	OR o.data->>'clientMac'='F81F32F89FB4')
     AND jsonb_array_length(o.data->'deviceObservers')::text::int>=1
-	AND substring(o.data->>'seenTime',1,10)='2020-12-15'
-    AND substring(o.data->>'seenTime',12,16)>='15:41'
-    AND substring(o.data->>'seenTime',12,16)<='16:04'
+	AND substring(o.data->>'seenTime',1,10)='2020-12-02'
     GROUP BY o.id
     ORDER BY o.data->>'seenTime'"""
 
@@ -370,18 +368,18 @@ def printDistancesComparation(APS):
             basedate, formatfrom))
         error = math.pow((ap['distance'] - ap['realdistance']), 2)
         a = (loc_dt.astimezone(colombia).strftime(
-            formatto), ap['name'], ap['rssi'], ap['distance'], ap['realdistance'], error)
+            formatto), ap['device'], ap['name'], ap['x'], ap['y'], ap['rssi'], ap['distance'])
         aps.append(a)
 
     wb = openpyxl.Workbook()
     hoja = wb.active
     # Crea la fila del encabezado con los títulos
-    hoja.append(('Tiempo', 'NOMBRE AP', 'rssi',
-                 'Distancia Metodo', 'Distancia Real', 'Error'))
+    hoja.append(('Tiempo', 'Dispositivo', 'NOMBRE AP', 'Coordenada X', 'Coordenada Y', 'rssi',
+                 'Distancia Metodo'))
     for ap in aps:
 
         hoja.append(ap)
-    wb.save('distancias2.xlsx')
+    wb.save('tablaregresion2dic.xlsx')
 
 
 def distanceRealFromDevice(x1, y1, x2, y2):
@@ -410,24 +408,7 @@ def calculatedistanceRssi(rssi, measuredpower, N):
     return math.pow(10, ((measuredpower - (rssi))/(10 * N)))
 
 
-def calculateddistanceAutocad(AP):
-    if(AP == "AP-E04-P4-A-19"):
-        return 7.20600444074246
-    elif(AP == "AP-E04-P4-E-05"):
-        return 12.5048928424037
-    elif(AP == "AP-E04-P3-H-01"):
-        return 19.0031372673041
-
-
-def calculateddistanceLinealModel(rssi):
-    return -0.43887*rssi-21.4009
-
-
-def calculateddistanceExponentialModel(rssi):
-    return 0.17927544*(math.e**(-0.04904022*rssi))
-
-
-def accurateIntersection(time, device, intersections, x, y):
+def accurateIntersection(time, intersections, x, y):
 
     distances = []
     aps = []
@@ -441,7 +422,7 @@ def accurateIntersection(time, device, intersections, x, y):
     errorx = math.pow((intersections[coords][0] - x), 2)
     errory = math.pow((intersections[coords][1] - y), 2)
 
-    a = (time, device, intersections[coords][0], intersections[coords]
+    a = (time, intersections[coords][0], intersections[coords]
          [1], x, y, errorx, errory, minDistance)
 
     return a
@@ -452,13 +433,13 @@ def printResultsMethods(aps):
     wb = openpyxl.Workbook()
     hoja = wb.active
     # Crea la fila del encabezado con los títulos
-    hoja.append(('Tiempo', 'Dispositivo', 'Intersection X', 'Intersection Y',
+    hoja.append(('Tiempo', 'Intersection X', 'Intersection Y',
                  'Ubicacion X', 'Ubicacion Y', 'Error Cuadrado X',
                  'Error Cuadrado Y', 'Distancia a ubicacion real'))
     for ap in aps:
 
         hoja.append(ap)
-    wb.save('triangulacionModeloLineal1.xlsx')
+    wb.save('ubicacionesTriangulacion1.xlsx')
 
 
 def trilateration_all():
@@ -487,26 +468,12 @@ def trilateration_all():
             names.append(ap['name'])
 
             APSObservers.append(
-                {'time': row[1], 'rssi': ap['rssi'], 'name': ap['name'], 'distance': calculateddistanceLinealModel(ap['rssi']),
-                 'realdistance': distanceRealFromDevice(ap['x'], ap['y'], 70.522, 15.821)})
-            # PRUEBA AUTOCAD
-            # APSTrilateration.append(
-            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceAutocad(ap['name']),
-            #      'x': ap['x'], 'y': ap['y']})
-            # PRUEBA LOG DISTANCE SHADOWING
-            # APSTrilateration.append(
-            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -51, 3.3),
-            #      'x': ap['x'], 'y': ap['y']})
+                {'time': row[1], 'rssi': ap['rssi'], 'name': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -50, 3.6),
+                 'realdistance': distanceRealFromDevice(ap['x'], ap['y'], 70.522, 15.821), 'device': row[2], 'x': ap['x'], 'y': ap['y']})
 
-            # PRUEBA MODELO LINEAL
             APSTrilateration.append(
-                {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceLinealModel(ap['rssi']),
+                {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -50, 3.6),
                  'x': ap['x'], 'y': ap['y']})
-
-            # PRUEBA MODELO EXPONENCIAL
-            # APSTrilateration.append(
-            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceExponentialModel(ap['rssi']),
-            #      'x': ap['x'], 'y': ap['y']})
 
         rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
 
@@ -531,23 +498,25 @@ def trilateration_all():
         print(loc_dt.astimezone(colombia).strftime(formatto))
 
        # if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 13:55:12 GMT-5":
-        intersections = trilateration2(APSTrilateration)
+        # intersections = trilateration2(APSTrilateration)
 
-        if len(intersections[0]) > 0:
+        # if len(intersections[0]) > 0:
             # drawTrilateration2(APSTrilateration, intersections[0],
             #                    loc_dt.astimezone(colombia).strftime(formatto))
-            devicexM, deviceyM = 70.522, 15.821
-            devicexAAN, deviceyAAN = 19.934, 8.580
+            # devicexM, deviceyM = 18.1342, 7.4941
+            # devicexAAN, deviceyAAN = 5.1258, 4.0642
 
-            Results.append(accurateIntersection(loc_dt.astimezone(
-                colombia).strftime(formatto), row[2], intersections[1], devicexM, deviceyM))
+            # Results.append(accurateIntersection(loc_dt.astimezone(
+            #     colombia).strftime(formatto), intersections[1], devicexM, deviceyM))
 
         # for AP1, AP2, AP3 in itertools.combinations(APSTrilateration, 3):
 
         #     print(trackPhone(AP1['x'], AP1['y'], AP1['distance'], AP2['x'], AP2['y'], AP2['distance'],
         #                      AP3['x'], AP3['y'], AP3['distance']))
-        #printDistancesComparation(APSObservers)
-        printResultsMethods(Results)
+        printDistancesComparation(APSObservers)
+        #print(distanceRealFromDevice(63.602, 17.831, 70.522, 15.821))
+        # print(AllIntersections)
+        # printResultsMethods(Results)
 
 
 trilateration_all()
