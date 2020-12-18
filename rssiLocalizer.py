@@ -175,13 +175,11 @@ try:
     INNER JOIN LATERAL JSONB_ARRAY_ELEMENTS(o.data->'deviceObservers') AS e(observers) ON TRUE
     INNER JOIN apsinfo u ON (e.observers->>'apMac')::text = u."MAC"
     INNER JOIN apscoordinates r ON (u."Host Name")::text = r."NOMBRE"
-    WHERE (o.data->>'clientMac'='60AB67B94E5D'
-	OR o.data->>'clientMac'='2446C8A8C839'
+    WHERE (o.data->>'clientMac'='2446C8A8C839'
+	OR o.data->>'clientMac'='60AB67B94E5D'
 	OR o.data->>'clientMac'='F81F32F8AA94')
     AND jsonb_array_length(o.data->'deviceObservers')::text::int>=1
 	AND substring(o.data->>'seenTime',1,10)='2020-12-15'
-    AND substring(o.data->>'seenTime',12,16)>='15:41'
-    AND substring(o.data->>'seenTime',12,16)<='16:04'
     GROUP BY o.id
     ORDER BY o.data->>'seenTime'"""
 
@@ -438,11 +436,13 @@ def accurateIntersection(time, device, intersections, x, y):
 
     minDistance = min(distances)
     coords = distances.index(minDistance)
-    errorx = math.pow((intersections[coords][0] - x), 2)
-    errory = math.pow((intersections[coords][1] - y), 2)
+    errorx = abs(intersections[coords][0] - x)
+    errory = abs(intersections[coords][1] - y)
+    error2x = math.pow(errorx, 2)
+    error2y = math.pow(errory, 2)
 
     a = (time, device, intersections[coords][0], intersections[coords]
-         [1], x, y, errorx, errory, minDistance)
+         [1], x, y, errorx, errory, error2x, error2y, minDistance)
 
     return a
 
@@ -453,12 +453,12 @@ def printResultsMethods(aps):
     hoja = wb.active
     # Crea la fila del encabezado con los títulos
     hoja.append(('Tiempo', 'Dispositivo', 'Intersection X', 'Intersection Y',
-                 'Ubicacion X', 'Ubicacion Y', 'Error Cuadrado X',
+                 'Ubicacion X', 'Ubicacion Y', 'Error Absoluto X', 'Error Absoluto Y', 'Error Cuadrado X',
                  'Error Cuadrado Y', 'Distancia a ubicacion real'))
     for ap in aps:
 
         hoja.append(ap)
-    wb.save('triangulacionModeloLineal1.xlsx')
+    wb.save('triangulacionLogD.xlsx')
 
 
 def trilateration_all():
@@ -495,18 +495,18 @@ def trilateration_all():
             #      'x': ap['x'], 'y': ap['y']})
             # PRUEBA LOG DISTANCE SHADOWING
             # APSTrilateration.append(
-            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -51, 3.3),
+            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculatedistanceRssi(ap['rssi'], -51, 3),
             #      'x': ap['x'], 'y': ap['y']})
 
             # PRUEBA MODELO LINEAL
-            APSTrilateration.append(
-                {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceLinealModel(ap['rssi']),
-                 'x': ap['x'], 'y': ap['y']})
+            # APSTrilateration.append(
+            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceLinealModel(ap['rssi']),
+            #      'x': ap['x'], 'y': ap['y']})
 
             # PRUEBA MODELO EXPONENCIAL
-            # APSTrilateration.append(
-            #     {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceExponentialModel(ap['rssi']),
-            #      'x': ap['x'], 'y': ap['y']})
+            APSTrilateration.append(
+                {'time': row[1], 'rssi': ap['rssi'], 'apName': ap['name'], 'distance': calculateddistanceExponentialModel(ap['rssi']),
+                 'x': ap['x'], 'y': ap['y']})
 
         rssi_localizer_instance = RSSI_Localizer(accessPoints=accessPoints)
 
@@ -529,6 +529,7 @@ def trilateration_all():
             basedate, formatfrom))
 
         print(loc_dt.astimezone(colombia).strftime(formatto))
+        print(loc_dt)
 
        # if loc_dt.astimezone(colombia).strftime(formatto) >= "Sat 31 Oct 2020, 13:55:12 GMT-5":
         intersections = trilateration2(APSTrilateration)
@@ -538,15 +539,144 @@ def trilateration_all():
             #                    loc_dt.astimezone(colombia).strftime(formatto))
             devicexM, deviceyM = 70.522, 15.821
             devicexAAN, deviceyAAN = 19.934, 8.580
+            date = loc_dt.astimezone(colombia).strftime(formatto)
+            date_time = datetime.datetime.strptime(
+                date, '%a %d %b %Y, %H:%M:%S GMT-5')
 
-            Results.append(accurateIntersection(loc_dt.astimezone(
-                colombia).strftime(formatto), row[2], intersections[1], devicexM, deviceyM))
+            date1 = 'Tue 15 Dec 2020, 10:41:00 GMT-5'
+            date_time1 = datetime.datetime.strptime(
+                date1, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date11 = 'Tue 15 Dec 2020, 11:04:00 GMT-5'
+            date_time11 = datetime.datetime.strptime(
+                date11, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date2 = 'Tue 15 Dec 2020, 11:42:00 GMT-5'
+            date_time2 = datetime.datetime.strptime(
+                date2, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date22 = 'Tue 15 Dec 2020, 11:48:00 GMT-5'
+            date_time22 = datetime.datetime.strptime(
+                date22, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date3 = 'Tue 15 Dec 2020, 11:49:00 GMT-5'
+            date_time3 = datetime.datetime.strptime(
+                date3, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date33 = 'Tue 15 Dec 2020, 11:54:00 GMT-5'
+            date_time33 = datetime.datetime.strptime(
+                date33, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date4 = 'Tue 15 Dec 2020, 11:55:00 GMT-5'
+            date_time4 = datetime.datetime.strptime(
+                date4, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date44 = 'Tue 15 Dec 2020, 12:00:00 GMT-5'
+            date_time44 = datetime.datetime.strptime(
+                date44, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date5 = 'Tue 15 Dec 2020, 12:05:00 GMT-5'
+            date_time5 = datetime.datetime.strptime(
+                date5, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date55 = 'Tue 15 Dec 2020, 12:10:00 GMT-5'
+            date_time55 = datetime.datetime.strptime(
+                date55, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date6 = 'Tue 15 Dec 2020, 12:11:00 GMT-5'
+            date_time6 = datetime.datetime.strptime(
+                date6, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date66 = 'Tue 15 Dec 2020, 12:15:00 GMT-5'
+            date_time66 = datetime.datetime.strptime(
+                date66, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date7 = 'Tue 15 Dec 2020, 12:16:00 GMT-5'
+            date_time7 = datetime.datetime.strptime(
+                date7, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date77 = 'Tue 15 Dec 2020, 12:20:00 GMT-5'
+            date_time77 = datetime.datetime.strptime(
+                date77, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date8 = 'Tue 15 Dec 2020, 12:23:00 GMT-5'
+            date_time8 = datetime.datetime.strptime(
+                date8, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date88 = 'Tue 15 Dec 2020, 12:28:00 GMT-5'
+            date_time88 = datetime.datetime.strptime(
+                date88, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date9 = 'Tue 15 Dec 2020, 12:29:00 GMT-5'
+            date_time9 = datetime.datetime.strptime(
+                date9, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date99 = 'Tue 15 Dec 2020, 12:34:00 GMT-5'
+            date_time99 = datetime.datetime.strptime(
+                date99, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date100 = 'Tue 15 Dec 2020, 12:35:00 GMT-5'
+            date_time100 = datetime.datetime.strptime(
+                date100, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date101 = 'Tue 15 Dec 2020, 12:39:00 GMT-5'
+            date_time101 = datetime.datetime.strptime(
+                date101, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date200 = 'Tue 15 Dec 2020, 14:02:00 GMT-5'
+            date_time200 = datetime.datetime.strptime(
+                date200, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            date201 = 'Tue 15 Dec 2020, 14:17:00 GMT-5'
+            date_time201 = datetime.datetime.strptime(
+                date201, '%a %d %b %Y, %H:%M:%S GMT-5')
+
+            if(date_time >= date_time1 and
+               date_time <= date_time11):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 70.522, 15.821))
+            elif(date_time >= date_time2 and
+                 date_time <= date_time22):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 63.721, 4.633))
+            elif(date_time >= date_time3 and
+                 date_time <= date_time33):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1],  63.721, 3.633))
+            elif(date_time >= date_time4 and
+                 date_time <= date_time44):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1],  63.721, 3.016))
+            elif(date_time >= date_time5 and
+                 date_time <= date_time55):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 63.602, 16.831))
+            elif(date_time >= date_time6 and
+                 date_time <= date_time66):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 63.602, 15.831))
+            elif(date_time >= date_time7 and
+                 date_time <= date_time77):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 63.602, 14.831))
+            elif(date_time >= date_time8 and
+                 date_time <= date_time88):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 66.523, -2.944))
+            elif(date_time >= date_time9 and
+                 date_time <= date_time99):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 65.523, -2.944))
+            elif(date_time >= date_time100 and
+                 date_time <= date_time101):
+                Results.append(accurateIntersection(loc_dt.astimezone(
+                    colombia).strftime(formatto), row[2], intersections[1], 64.523, -2.944))
 
         # for AP1, AP2, AP3 in itertools.combinations(APSTrilateration, 3):
 
         #     print(trackPhone(AP1['x'], AP1['y'], AP1['distance'], AP2['x'], AP2['y'], AP2['distance'],
         #                      AP3['x'], AP3['y'], AP3['distance']))
-        #printDistancesComparation(APSObservers)
+        # printDistancesComparation(APSObservers)
         printResultsMethods(Results)
 
 
