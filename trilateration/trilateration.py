@@ -350,6 +350,8 @@ def calculate_intersections(x0, y0, r0, x1,  y1, r1):
 def expectedY(deviceName, seentime):
     hour = seentime.split(" ")[4]
     mins = hour.split(":")[1]
+    hourH = hour.split(":")[0]
+
     if deviceName == "F81F32F89FB4":
         if int(mins) > 36:
             return 4.6333
@@ -363,18 +365,39 @@ def expectedY(deviceName, seentime):
             return 11.821
         else: 
             return 14.821
-
+    if deviceName == "F81F32F8A5D4":
+        if int(hourH) == 14 or (int(hourH) == 15 and int(mins) < 10):
+            return 15.821
+        if int(hourH) == 15 and (int(mins) > 10 or int(mins) < 43):
+            return  4.633
+        if int(hourH) == 15 and (int(mins)>42 or int(mins)< 49):
+            return 3.633
+        if (int(hourH) == 15 and int(mins) >48) or (int(hourH) == 16 and int(mins) < 3):
+            return 3.016
+        if int(hourH) == 16 and int(min) < 29:
+            return -6.172
+        else:
+            return 10
     else:
         return 40
 
 def expectedX(deviceName, seentime):
     hour = seentime.split(" ")[4]
     mins = hour.split(":")[1]
+    hourH = hour.split(":")[0]
+
     if deviceName == "F81F32F89FB4":
         if int(mins) > 36:
             return 63.721
         else:
             return 70.522
-    else: 
+    if deviceName == "F81F32F8A5D4":
+        if int(hourH) == 14 or (int(hourH) == 15 and int(mins) < 10):
+            return 70.522
+        if int(hourH) == 15 and (int(mins) > 10):
+            return  63.721
+        else:
+            return 10
+    else:
         return 40
         
