@@ -14,6 +14,7 @@ accessPointsMacs = []
 observers = []
 
 testDevices = ['F81F32F8AA94','60AB67B94E5D','2446C8A8C839']
+testDevices2Dic = ['F81F32F8A5D4','F81F32F8A61E','F81F32F89FB4']
 
 def handleDeviceInformation(deviceMac, accessPoints, accessPointsMacs, distanceMethod):
     dev = databaseService.fetchDeviceObserversInfo(deviceMac)
@@ -28,8 +29,9 @@ def init(distanceMethod):
   for ap in apsMacs:
     for info in ap:
         accessPointsMacs.append(trilateration.handleAPMacInfo(info))
-  handleDeviceInformation('2446C8A8C839', accessPoints, accessPointsMacs,distanceMethod)
+  handleDeviceInformation(testDevices2Dic[0], accessPoints, accessPointsMacs,distanceMethod)
 
 
-
-init(2)
+# 3 lineal method
+# 4 exponential method
+init(3)

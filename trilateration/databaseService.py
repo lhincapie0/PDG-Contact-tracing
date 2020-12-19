@@ -36,7 +36,7 @@ def fetchDeviceObserversInfo(mac_device):
                         json_array_elements(data->'data'->'observations')->>'seenTime' as seenTime,
                         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'apMac' as apMac,
                         json_array_elements( json_array_elements(data->'data'->'observations')->'deviceObservers') ->> 'rssi' as rssi
-                        FROM pruebasdiciembre2 e
+                        FROM pruebasdiciembre e
                         ORDER BY mac,seenTime) as res
                         WHERE res.mac='"""+mac_device+"';"""
         cursor.execute(postgreSQL_select_Query)

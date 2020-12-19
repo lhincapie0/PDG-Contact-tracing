@@ -4,9 +4,12 @@ from pytz import timezone
 import xlsxwriter
 import math
 import matplotlib.pyplot as plt
+import openpyxl
 
 apNotRegister = 'C413E287F840'
 apToMatch = 'C413E2877880'
+
+resultsComparisson = []
 
 def handleAPMacInfo(accessPointInfo):
     return {
@@ -56,6 +59,29 @@ def saveObserversInfo(observers):
     for observer in element:
       observersList.append(handleObserversInfo(observer))
   return observersList
+
+def distanceRealFromDevice(x1, y1, x2, y2):
+    return math.sqrt((x2-x1)**2+(y2-y1)**2)
+
+def accurateIntersection(time, device, intersections, x, y):
+    distances = []
+    aps = []
+    for i in intersections:
+
+        distances.append(distanceRealFromDevice(
+            i[0], i[1], x, y))
+
+    minDistance = min(distances)
+    coords = distances.index(minDistance)
+    errorx = abs(intersections[coords][0] - x)
+    errory = abs(intersections[coords][1] - y)
+    error2x = math.pow(errorx, 2)
+    error2y = math.pow(errory, 2)
+
+    a = (time, device, intersections[coords][0], intersections[coords]
+         [1], x, y, errorx, errory, error2x, error2y, minDistance)
+
+    return a
 
 def handleTimeRange(observers, deviceMac):
     momentsProfile = []
@@ -116,6 +142,14 @@ def trilat(momentsProfile, observers, accessPoints,apMacs,distanceMethod):
         if moment.get('observers_number') > 2:
             executeTrilateration(moment, observers, accessPoints,apMacs, distanceMethod)
 
+def calculateddistanceLinealModel(observation):
+    rssi = int(observation.get('rssi'))
+    return -0.43887*rssi-21.4009
+
+def calculateddistanceExponentialModel(observation):
+    rssi = int(observation.get('rssi'))
+    return 0.17927544*(math.e**(-0.04904022*rssi))
+
 def getDistanceFromAP(observation, accessPoint):
     rssi = int(observation.get('rssi'))
     measuredPower = -52
@@ -146,7 +180,22 @@ def findAccessPointByMac(apMac, accessPoints, apMacs):
         ##print(ap.get("nombre"))
 
 
+def printResultsMethods(aps):
+  
+    wb = openpyxl.Workbook()
+    hoja = wb.active
+    # Crea la fila del encabezado con los títulos
+    hoja.append(('Tiempo', 'Dispositivo', 'Intersection X', 'Intersection Y',
+                 'Ubicacion X', 'Ubicacion Y', 'Error Absoluto X', 'Error Absoluto Y', 'Error Cuadrado X',
+                 'Error Cuadrado Y', 'Distancia a ubicacion real'))
+    for ap in aps:
+
+        hoja.append(ap)
+    wb.save('triangulacionLogD.xlsx')
+
 def executeTrilateration(moment, observers,accessPoints, apMacs, distanceMethod):
+   print('seentimeeeee')
+   print(parseSeenTime(moment.get('seentime'))) 
    foundAps = 0;
    observations = []
    deviceObservers = []
@@ -157,8 +206,12 @@ def executeTrilateration(moment, observers,accessPoints, apMacs, distanceMethod)
         accessPoint = findAccessPointByMac(obs.get('apMac'), accessPoints,apMacs)
         if distanceMethod == 1:
             obs["distance"] = getDistanceFromAP(obs, accessPoint)
-        else:
+        if distanceMethod == 2:
             obs["distance"] = getDistanceFromAP_ITU(obs, accessPoint)
+        if distanceMethod == 3:
+            obs["distance"] = calculateddistanceLinealModel(obs)
+        if distanceMethod == 4:
+            obs["distance"] = calculateddistanceExponentialModel(obs)
 
         if accessPoint != '':
             foundAps += 1
@@ -186,7 +239,7 @@ def drawTrilateration(deviceObservers):
                     if intersection != None:
                             plt.plot([intersection[0], intersection[1]], [
                             intersection[2], intersection[3]], '.', color='r')
-
+    print("UNA OBSERVACION")
     ax.set_aspect('equal', adjustable='datalim')
     ax.plot()
     ax.set_title(seentime)
