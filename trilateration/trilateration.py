@@ -5,11 +5,10 @@ import xlsxwriter
 import math
 import matplotlib.pyplot as plt
 import openpyxl
-
-apNotRegister = 'C413E287F840'
-apToMatch = 'C413E2877880'
+import itertools
 
 resultsComparisson = []
+deviceName = "F81F32F8A5D4"
 
 def handleAPMacInfo(accessPointInfo):
     return {
@@ -63,25 +62,7 @@ def saveObserversInfo(observers):
 def distanceRealFromDevice(x1, y1, x2, y2):
     return math.sqrt((x2-x1)**2+(y2-y1)**2)
 
-def accurateIntersection(time, device, intersections, x, y):
-    distances = []
-    aps = []
-    for i in intersections:
 
-        distances.append(distanceRealFromDevice(
-            i[0], i[1], x, y))
-
-    minDistance = min(distances)
-    coords = distances.index(minDistance)
-    errorx = abs(intersections[coords][0] - x)
-    errory = abs(intersections[coords][1] - y)
-    error2x = math.pow(errorx, 2)
-    error2y = math.pow(errory, 2)
-
-    a = (time, device, intersections[coords][0], intersections[coords]
-         [1], x, y, errorx, errory, error2x, error2y, minDistance)
-
-    return a
 
 def handleTimeRange(observers, deviceMac):
     momentsProfile = []
@@ -141,6 +122,10 @@ def trilat(momentsProfile, observers, accessPoints,apMacs,distanceMethod):
     for moment in momentsProfile:
         if moment.get('observers_number') > 2:
             executeTrilateration(moment, observers, accessPoints,apMacs, distanceMethod)
+    print("results comparissons")
+    print(resultsComparisson)
+    printResultsMethods(resultsComparisson)
+
 
 def calculateddistanceLinealModel(observation):
     rssi = int(observation.get('rssi'))
@@ -179,6 +164,33 @@ def findAccessPointByMac(apMac, accessPoints, apMacs):
     ##for ap in accessPoints:
         ##print(ap.get("nombre"))
 
+def accurateIntersection(time, device, intersections, x, y):
+    distances = []
+    aps = []
+    i = 0
+  
+    distances.append(distanceRealFromDevice(
+            intersections[0], intersections[1], x, y))
+    distances.append(distanceRealFromDevice(
+            intersections[2], intersections[3], x, y))
+
+    minDistance = min(distances)
+
+    coords = distances.index(minDistance)
+    print(intersections[coords])
+    if coords == 0:
+      intX = intersections[0]
+      intY = intersections[1]
+    if coords == 1:
+      intX = intersections[2]
+      intY = intersections[3]
+    errorx = abs(intX - x)
+    errory = abs(intY - y)
+    error2x = math.pow(errorx, 2)
+    error2y = math.pow(errory, 2)
+
+    a = (time, device, intX, intY, x, y, errorx, errory, error2x, error2y, minDistance)
+    return a
 
 def printResultsMethods(aps):
   
@@ -194,7 +206,6 @@ def printResultsMethods(aps):
     wb.save('triangulacionLogD.xlsx')
 
 def executeTrilateration(moment, observers,accessPoints, apMacs, distanceMethod):
-   print('seentimeeeee')
    print(parseSeenTime(moment.get('seentime'))) 
    foundAps = 0;
    observations = []
@@ -229,14 +240,17 @@ def drawTrilateration(deviceObservers):
     intersections = []
     for do in deviceObservers:
          if do.get('name') != None:
-            seentime = do.get('seentime')
+            seentime = parseSeenTime(do.get('seentime'))
             ax.add_patch(plt.Circle((do.get('apX'), do.get('apY')), do.get('distance'), color='b', alpha=0.5))
             ax.annotate(do.get('name'), xy=(do.get('apX'), do.get('apY')), fontsize=10)
             for do1 in deviceObservers:
                 if do1.get('name') != do.get('name') and do1.get('name') != None:
                     intersection = calculate_intersections(do1.get('apX'), do1.get('apY'), do1.get('distance'), do.get('apX'), do.get('apY'), do.get('distance'))
                     print(intersection)
+                    print("que puts")
+                    
                     if intersection != None:
+                            resultsComparisson.append(accurateIntersection(seentime, deviceName, intersection, 48, -11))
                             plt.plot([intersection[0], intersection[1]], [
                             intersection[2], intersection[3]], '.', color='r')
     print("UNA OBSERVACION")

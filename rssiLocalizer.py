@@ -13,6 +13,8 @@ from operator import itemgetter
 import json
 import csv
 import os
+import openpyxl
+
 
 accesspoints = []
 observers = []
